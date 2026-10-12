@@ -187,6 +187,7 @@ input, select {
 .chip { font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
 .chip.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .chip.stale { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+.chip.rupture { color: #d9381e; background: color-mix(in srgb, #d9381e 12%, transparent); border-color: color-mix(in srgb, #d9381e 40%, transparent); }
 .acts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0 6px; }
 .act {
   font: inherit;
@@ -417,7 +418,16 @@ footer a { color: inherit; }
     }
     var price = Number(r[fuel.apiField]);
     if (!isFinite(la) || !isFinite(lo) || !isFinite(price) || price <= 0) return null;
-    if (r[fuel.rupField]) return null; /* rupture de stock déclarée */
+    if (r[fuel.rupField]) return null; /* rupture du carburant sélectionné */
+
+    /* Recherche des autres carburants en rupture signalée */
+    var ruptures = [];
+    Object.keys(FUELS).forEach(function (k) {
+      if (k !== fuel.key && r[FUELS[k].rupField]) {
+        ruptures.push(FUELS[k].name);
+      }
+    });
+
     var services = r.services_service;
     if (typeof services === "string") services = services.split("//").filter(Boolean);
     if (!Array.isArray(services)) services = [];
@@ -428,6 +438,7 @@ footer a { color: inherit; }
       id: String(r.id), lat: la, lon: lo, price: price,
       adresse: lower(r.adresse), ville: lower(r.ville), cp: r.cp || "",
       maj: maj, h24: h24, services: services, brand: "",
+      ruptures: ruptures,
       dist: haversine(lat0, lon0, la, lo)
     };
   }
@@ -554,6 +565,9 @@ footer a { color: inherit; }
       var h = ageHours(s.maj), stale = h != null && h > FRESH_H;
       var lbl = ageLabel(s.maj);
       var svc = s.services.slice(0, 3).map(function (x) { return '<span class="chip">' + esc(x) + '</span>'; }).join("");
+      var rupTag = s.ruptures && s.ruptures.length > 0
+        ? '<span class="chip rupture" title="Rupture signalée pour d’autres carburants">⚠️ Pénurie : ' + esc(s.ruptures.join(", ")) + '</span>'
+        : '';
       html +=
         '<li class="item' + (state.selected === s.id ? " sel" : "") + '" data-id="' + esc(s.id) + '">' +
           '<div class="price">' + esc(nf3.format(s.price)) + '<small>€/L</small></div>' +
@@ -562,6 +576,7 @@ footer a { color: inherit; }
           '<div class="foot">' +
             (s.h24 ? '<span class="chip ok">24 h/24</span>' : '') +
             (lbl ? '<span class="chip' + (stale ? ' stale' : '') + '">' + esc(lbl) + '</span>' : '') +
+            rupTag +
             svc +
             '<span class="acts">' +
               '<button class="act show" type="button" data-id="' + esc(s.id) + '">Voir sur la carte</button>' +
@@ -758,5 +773,3 @@ footer a { color: inherit; }
   if (state.lat != null) load();
 })();
 </script>
-</body>
-</html>
