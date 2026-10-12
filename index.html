@@ -216,7 +216,8 @@ footer a { color: inherit; }
 <body>
 <div class="wrap">
   <header>
-    <h1><span class="tag" id="headerTag">E10</span> Moins cher</h1>
+    <!-- Intégration de l'image PNG comme logo du site dans l'en-tête, juste avant le titre principal -->
+    <h1><img src="logo.png" alt="Logo" style="height: 1em; vertical-align: middle; margin-right: 0.3em;"><span class="tag" id="headerTag">E10</span> Moins cher</h1>
     <p class="lede">Les stations-service les moins chères autour de vous, d’après les prix déclarés par les stations au gouvernement.</p>
   </header>
 
@@ -418,9 +419,8 @@ footer a { color: inherit; }
     }
     var price = Number(r[fuel.apiField]);
     if (!isFinite(la) || !isFinite(lo) || !isFinite(price) || price <= 0) return null;
-    if (r[fuel.rupField]) return null; /* rupture du carburant sélectionné */
+    if (r[fuel.rupField]) return null;
 
-    /* Recherche des autres carburants en rupture signalée */
     var ruptures = [];
     Object.keys(FUELS).forEach(function (k) {
       if (k !== fuel.key && r[FUELS[k].rupField]) {
@@ -773,3 +773,5 @@ footer a { color: inherit; }
   if (state.lat != null) load();
 })();
 </script>
+</body>
+</html>
