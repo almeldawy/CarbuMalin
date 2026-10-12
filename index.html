@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carburants Moins Cher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --font-display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bg: #edf0ee;
+  --surface: #ffffff;
+  --ink: #141918;
+  --muted: #566260;
+  --line: #d6dcda;
+  --accent: #0a7d3e;
+  --accent-ink: #ffffff;
+  --board: #101412;
+  --led: #ffb627;
+  --led-dim: #8a6a1e;
+  --warn: #a94b06;
+  --warn-bg: #fbe9d9;
+  --focus: #0b5fd6;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1211;
+    --surface: #161b1a;
+    --ink: #eef2f0;
+    --muted: #9aa7a3;
+    --line: #29312f;
+    --accent: #3ecf7a;
+    --accent-ink: #04210f;
+    --board: #060808;
+    --led: #ffc247;
+    --led-dim: #8f7126;
+    --warn: #f0a15f;
+    --warn-bg: #2e2013;
+    --focus: #7fb0ff;
+    color-scheme: dark;
+  }
+  .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-inline: 16px;
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 760px; margin-inline: auto; display: flex; flex-direction: column; gap: 16px; }
+h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.4rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+h1 .tag {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0 .35em;
+  border-radius: 4px;
+  margin-right: .15em;
+}
+.lede { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.cap { text-transform: capitalize; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.search { display: flex; flex: 1 1 260px; min-width: 0; gap: 8px; }
+.search input { flex: 1; min-width: 0; }
+input, select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+.btn {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn[disabled] { opacity: .6; cursor: progress; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.opts label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.opts input, .opts select { width: 100%; font-size: 1rem; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.toggles { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.check { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.check input { width: 20px; height: 20px; min-height: 0; padding: 0; margin: 0; accent-color: var(--accent); }
+.status { margin: 0; color: var(--muted); font-size: .9rem; min-height: 1.3em; }
+.status.err { color: var(--warn); }
+
+.board {
+  background: var(--board);
+  color: #f2f5f3;
+  border-radius: 12px;
+  padding: 18px;
+  display: grid;
+  gap: 6px 18px;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  border: 1px solid #000;
+}
+.board .kicker { grid-column: 1 / -1; font-size: .78rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #9fb0aa; }
+.board .led {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(3.6rem, 18vw, 5.6rem);
+  line-height: .9;
+  color: var(--led);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--led) 35%, transparent);
+}
+.board .led small { font-size: .32em; color: var(--led-dim); margin-left: .2em; letter-spacing: .04em; }
+.board .where { min-width: 0; text-align: right; }
+.board .where strong { display: block; font-weight: 600; text-transform: capitalize; overflow-wrap: anywhere; }
+.board .where span { color: #9fb0aa; font-size: .9rem; text-transform: capitalize; overflow-wrap: anywhere; }
+.board .save { grid-column: 1 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid #2a3331; color: #c8d3ce; font-size: .92rem; }
+.board .save b { color: #7fe3a6; font-weight: 600; }
+@media (max-width: 480px) { .board { grid-template-columns: 1fr; } .board .where { text-align: left; } }
+
+#map { height: 300px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.pin span {
+  display: block;
+  width: 58px;
+  text-align: center;
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  font: 700 14px/20px var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+.pin-best span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pin-me span { width: 18px; height: 18px; border-radius: 50%; background: var(--focus); border: 3px solid #fff; margin-left: 20px; box-shadow: 0 0 0 2px var(--focus); }
+
+.count { margin: 0 0 8px; color: var(--muted); font-size: .85rem; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: center;
+  scroll-margin-block: 12px;
+}
+.item.sel { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.item .price { font-family: var(--font-display); font-weight: 700; font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; min-width: 4.1ch; }
+.item .price small { font-size: .5em; color: var(--muted); margin-left: 2px; }
+.item .addr { min-width: 0; }
+.item .addr b { display: block; font-weight: 600; text-transform: capitalize; overflow-wrap: anywhere; }
+.item .addr span { color: var(--muted); font-size: .88rem; text-transform: capitalize; overflow-wrap: anywhere; }
+.item .addr .brand { display: block; color: var(--accent); font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.item .meta { text-align: right; font-variant-numeric: tabular-nums; font-size: .9rem; white-space: nowrap; }
+.item .meta b { display: block; font-weight: 600; }
+.item .meta span { color: var(--muted); font-size: .82rem; }
+.item .foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-top: 6px; }
+.chip { font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.chip.stale { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+.acts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0 6px; }
+.act {
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 8px 6px;
+}
+.act:hover { text-decoration: underline; }
+.more { align-self: center; margin-top: 8px; }
+#results { display: flex; flex-direction: column; }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 22px 18px; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: 4px; }
+.note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+footer { color: var(--muted); font-size: .82rem; display: flex; flex-direction: column; gap: 4px; }
+footer p { margin: 0; }
+footer a { color: inherit; }
+.leaflet-container { font-family: var(--font-body); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="tag" id="headerTag">E10</span> Moins cher</h1>
+    <p class="lede">Les stations-service les moins chères autour de vous, d’après les prix déclarés par les stations au gouvernement.</p>
+  </header>
+
+  <section class="panel" aria-label="Recherche">
+    <div class="row">
+      <button class="btn primary" id="locate" type="button">Me localiser</button>
+      <form class="search" id="searchForm" role="search">
+        <input id="q" type="search" placeholder="Ville ou adresse" autocomplete="off" aria-label="Ville ou adresse">
+        <button class="btn" type="submit">Chercher</button>
+      </form>
+    </div>
+    <div class="opts">
+      <label for="fuel">Carburant
+        <select id="fuel">
+          <option value="e10" selected>E10</option>
+          <option value="gazole">Gazole</option>
+          <option value="sp95">SP95</option>
+          <option value="sp98">SP98</option>
+          <option value="e85">E85</option>
+          <option value="gplc">GPLc</option>
+        </select>
+      </label>
+      <label for="radius">Rayon
+        <select id="radius">
+          <option value="3">3 km</option>
+          <option value="5">5 km</option>
+          <option value="10" selected>10 km</option>
+          <option value="20">20 km</option>
+          <option value="30">30 km</option>
+          <option value="50">50 km</option>
+        </select>
+      </label>
+      <label for="sort">Trier par
+        <select id="sort">
+          <option value="prix" selected>Prix au litre</option>
+          <option value="cout">Coût réel du plein</option>
+          <option value="dist">Distance</option>
+        </select>
+      </label>
+      <label for="liters">Plein (litres)
+        <input id="liters" type="number" inputmode="numeric" min="5" max="120" step="1" value="40">
+      </label>
+      <label for="conso">Conso (L/100 km)
+        <input id="conso" type="number" inputmode="decimal" min="1" max="30" step="0.1" value="6.5">
+      </label>
+    </div>
+    <div class="toggles">
+      <label class="check" for="fresh"><input id="fresh" type="checkbox"> Prix de moins de 3 jours</label>
+      <label class="check" for="only24"><input id="only24" type="checkbox"> Ouverte 24 h/24</label>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <div id="board"></div>
+  <div id="map" aria-label="Carte des stations"></div>
+  <div id="results"></div>
+
+  <footer>
+    <p>Le coût réel ajoute le carburant consommé pour l’aller-retour jusqu’à la station (distance à vol d’oiseau), avec la consommation indiquée ci-dessus.</p>
+    <p>Source : <a href="https://www.data.gouv.fr/fr/datasets/prix-des-carburants-en-france-flux-instantane-v2-amelioree/" target="_blank" rel="noopener">Prix des carburants en France, flux instantané</a> (data.economie.gouv.fr, Licence Ouverte 2.0), <a href="https://adresse.data.gouv.fr/" target="_blank" rel="noopener">Base Adresse Nationale</a> et enseignes © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a>, rapprochées de chaque station par leur position (une enseigne peut manquer ou être inexacte). Les prix sont ceux déclarés par les stations et peuvent différer à la pompe.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var API = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records";
+  var GEO = "https://api-adresse.data.gouv.fr/search/";
+  var OVERPASS = "https://overpass-api.de/api/interpreter";  /* enseignes : OpenStreetMap */
+  var BRAND_MATCH_KM = 0.15;
+  var BRAND_TIMEOUT = 30000;
+  var PAGE = 100;          /* maximum de lignes par requête de l'API */
+  var MAX_ROWS = 1000;     /* stations analysées au maximum */
+  var TIMEOUT = 20000;
+  var STEP = 40;           /* stations affichées par tranche */
+  var PRICE_MIN = 0.4, PRICE_MAX = 3.5;  /* en dehors : erreur de saisie probable */
+  var FRESH_H = 72;
+  var REFRESH_MS = 15 * 60 * 1000;
+  var PREFS_KEY = "carburant-prefs", POS_KEY = "carburant-pos";
+
+  var FUELS = {
+    e10: { key: "e10", name: "E10", apiField: "e10_prix", majField: "e10_maj", rupField: "e10_rupture_type" },
+    gazole: { key: "gazole", name: "Gazole", apiField: "gazole_prix", majField: "gazole_maj", rupField: "gazole_rupture_type" },
+    sp95: { key: "sp95", name: "SP95", apiField: "sp95_prix", majField: "sp95_maj", rupField: "sp95_rupture_type" },
+    sp98: { key: "sp98", name: "SP98", apiField: "sp98_prix", majField: "sp98_maj", rupField: "sp98_rupture_type" },
+    e85: { key: "e85", name: "E85", apiField: "e85_prix", majField: "e85_maj", rupField: "e85_rupture_type" },
+    gplc: { key: "gplc", name: "GPLc", apiField: "gplc_prix", majField: "gplc_maj", rupField: "gplc_rupture_type" }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var nf3 = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  var eur = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+  var km1 = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  var state = { lat: null, lon: null, label: "", stations: [], total: 0, ignored: 0, shown: STEP, selected: null, ctrl: null, loadedAt: 0 };
+  var map = null, layer = null, markers = {}, brandCache = null;
+
+  function getSelectedFuel() {
+    var sel = $("fuel") ? $("fuel").value : "e10";
+    return FUELS[sel] || FUELS.e10;
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function lower(s) { return String(s || "").toLowerCase(); }
+  function setStatus(msg, isErr) { var el = $("status"); el.textContent = msg || ""; el.className = "status" + (isErr ? " err" : ""); }
+  function store(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  function recall(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
+  function plural(n, one, many) { return n + " " + (n > 1 ? many : one); }
+
+  function haversine(la1, lo1, la2, lo2) {
+    var R = 6371, r = Math.PI / 180;
+    var dLa = (la2 - la1) * r, dLo = (lo2 - lo1) * r;
+    var a = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  function ageHours(d) { return d && !isNaN(d) ? (Date.now() - d.getTime()) / 36e5 : null; }
+  function ageLabel(d) {
+    var h = ageHours(d);
+    if (h == null) return null;
+    if (h < 1) return "mis à jour il y a moins d’1 h";
+    if (h < 24) return "mis à jour il y a " + Math.round(h) + " h";
+    return "mis à jour il y a " + Math.round(h / 24) + " j";
+  }
+
+  function tfetch(url, signal, ms) {
+    var c = new AbortController(), timedOut = false;
+    var t = setTimeout(function () { timedOut = true; c.abort(); }, ms || TIMEOUT);
+    function onAbort() { c.abort(); }
+    function done() { clearTimeout(t); if (signal) signal.removeEventListener("abort", onAbort); }
+    if (signal) { if (signal.aborted) c.abort(); else signal.addEventListener("abort", onAbort); }
+    return fetch(url, { signal: c.signal }).then(function (res) {
+      done();
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (j) {
+          var e = new Error("Erreur " + res.status + (j && j.message ? " : " + j.message : ""));
+          e.status = res.status;
+          throw e;
+        });
+      }
+      return res.json();
+    }).catch(function (e) {
+      done();
+      if (timedOut) throw new Error("Le service met trop de temps à répondre.");
+      throw e;
+    });
+  }
+
+  function buildUrl(where, offset) {
+    var fuel = getSelectedFuel();
+    var u = new URL(API);
+    u.searchParams.set("where", where);
+    u.searchParams.set("order_by", fuel.apiField + " asc");
+    u.searchParams.set("limit", String(PAGE));
+    u.searchParams.set("offset", String(offset));
+    return u.toString();
+  }
+  function whereCircle(lat, lon, km) {
+    var fuel = getSelectedFuel();
+    return fuel.apiField + " is not null and within_distance(geom, geom'POINT(" + lon.toFixed(6) + " " + lat.toFixed(6) + ")', " + km + "km)";
+  }
+  function whereBox(lat, lon, km) {
+    var fuel = getSelectedFuel();
+    var dLa = km / 111, dLo = km / (111 * Math.max(Math.cos(lat * Math.PI / 180), 0.2));
+    return fuel.apiField + " is not null and in_bbox(geom, " + (lat - dLa).toFixed(6) + ", " + (lon - dLo).toFixed(6) + ", " + (lat + dLa).toFixed(6) + ", " + (lon + dLo).toFixed(6) + ")";
+  }
+
+  function fetchStations(lat, lon, km, signal) {
+    function run(where) {
+      return tfetch(buildUrl(where, 0), signal).then(function (first) {
+        var rows = (first && first.results) || [];
+        var total = first && typeof first.total_count === "number" ? first.total_count : rows.length;
+        var cap = Math.min(total, MAX_ROWS), jobs = [];
+        for (var off = PAGE; off < cap; off += PAGE) jobs.push(tfetch(buildUrl(where, off), signal));
+        return Promise.all(jobs).then(function (pages) {
+          pages.forEach(function (p) { rows = rows.concat((p && p.results) || []); });
+          return { rows: rows, total: total };
+        });
+      });
+    }
+    return run(whereCircle(lat, lon, km)).catch(function (e) {
+      if (e && e.status === 400) return run(whereBox(lat, lon, km));
+      throw e;
+    });
+  }
+
+  function normalize(r, lat0, lon0) {
+    var fuel = getSelectedFuel();
+    var la = r.geom ? (r.geom.lat != null ? r.geom.lat : r.geom.latitude) : null;
+    var lo = r.geom ? (r.geom.lon != null ? r.geom.lon : r.geom.longitude) : null;
+    if (la == null || lo == null) {
+      la = parseFloat(r.latitude); lo = parseFloat(r.longitude);
+      if (Math.abs(la) > 90) { la /= 1e5; lo /= 1e5; }
+    }
+    var price = Number(r[fuel.apiField]);
+    if (!isFinite(la) || !isFinite(lo) || !isFinite(price) || price <= 0) return null;
+    if (r[fuel.rupField]) return null; /* rupture de stock déclarée */
+    var services = r.services_service;
+    if (typeof services === "string") services = services.split("//").filter(Boolean);
+    if (!Array.isArray(services)) services = [];
+    var a24 = r.horaires_automate_24_24;
+    var h24 = a24 === true || String(a24 || "").toLowerCase() === "oui";
+    var maj = r[fuel.majField] ? new Date(r[fuel.majField]) : null;
+    return {
+      id: String(r.id), lat: la, lon: lo, price: price,
+      adresse: lower(r.adresse), ville: lower(r.ville), cp: r.cp || "",
+      maj: maj, h24: h24, services: services, brand: "",
+      dist: haversine(lat0, lon0, la, lo)
+    };
+  }
+
+  function fetchBrands(list, signal) {
+    var s = 90, w = 180, n = -90, e = -180;
+    list.forEach(function (st) {
+      if (st.lat < s) s = st.lat; if (st.lat > n) n = st.lat;
+      if (st.lon < w) w = st.lon; if (st.lon > e) e = st.lon;
+    });
+    s -= 0.01; w -= 0.01; n += 0.01; e += 0.01;
+    if (brandCache && brandCache.s <= s && brandCache.w <= w && brandCache.n >= n && brandCache.e >= e) return Promise.resolve(brandCache.pts);
+    var q = '[out:json][timeout:25];nwr["amenity"="fuel"](' + [s, w, n, e].map(function (x) { return x.toFixed(5); }).join(",") + ");out center tags;";
+    return tfetch(OVERPASS + "?data=" + encodeURIComponent(q), signal, BRAND_TIMEOUT).then(function (j) {
+      var pts = [];
+      ((j && j.elements) || []).forEach(function (el) {
+        var la = el.lat != null ? el.lat : el.center && el.center.lat;
+        var lo = el.lon != null ? el.lon : el.center && el.center.lon;
+        var t = el.tags || {};
+        var name = String(t.brand || t.name || t.operator || "").trim();
+        if (name && la != null && lo != null) pts.push({ lat: la, lon: lo, name: name });
+      });
+      brandCache = { s: s, w: w, n: n, e: e, pts: pts };
+      return pts;
+    });
+  }
+  function attachBrands(list, pts) {
+    list.forEach(function (st) {
+      var best = null, bd = BRAND_MATCH_KM;
+      var kx = Math.cos(st.lat * Math.PI / 180) * 111.32;
+      for (var i = 0; i < pts.length; i++) {
+        var dx = (pts[i].lon - st.lon) * kx, dy = (pts[i].lat - st.lat) * 110.57;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < bd) { bd = d; best = pts[i]; }
+      }
+      st.brand = best ? best.name : "";
+    });
+  }
+
+  function liters() { var v = parseFloat($("liters").value); return v > 0 ? v : 40; }
+  function conso() { var v = parseFloat(String($("conso").value).replace(",", ".")); return v > 0 ? v : 6.5; }
+  function realCost(s) { return s.price * (liters() + 2 * s.dist * conso() / 100); }
+  function median(arr) {
+    var a = arr.slice().sort(function (x, y) { return x - y; });
+    var m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  }
+  function byPrice(a, b) { return (a.price - b.price) || (a.dist - b.dist); }
+  function view() {
+    var fresh = $("fresh").checked, only24 = $("only24").checked;
+    return state.stations.filter(function (s) {
+      if (fresh) { var h = ageHours(s.maj); if (h == null || h > FRESH_H) return false; }
+      if (only24 && !s.h24) return false;
+      return true;
+    });
+  }
+  function sorted(list) {
+    var mode = $("sort").value;
+    var key = mode === "dist" ? function (s) { return s.dist; } : mode === "cout" ? realCost : function (s) { return s.price; };
+    return list.slice().sort(function (a, b) { return (key(a) - key(b)) || (a.dist - b.dist); });
+  }
+
+  function directions(s) { return "https://www.google.com/maps/dir/?api=1&destination=" + s.lat + "," + s.lon; }
+  function itemEl(id) {
+    var els = document.querySelectorAll(".item");
+    for (var i = 0; i < els.length; i++) if (els[i].getAttribute("data-id") === String(id)) return els[i];
+    return null;
+  }
+  function smooth() { return !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+
+  function select(id, fromList) {
+    state.selected = id;
+    var els = document.querySelectorAll(".item");
+    for (var i = 0; i < els.length; i++) els[i].classList.toggle("sel", els[i].getAttribute("data-id") === String(id));
+    var m = markers[id];
+    if (fromList && m && map) {
+      map.setView(m.getLatLng(), Math.max(map.getZoom(), 14));
+      m.openPopup();
+      $("map").scrollIntoView({ behavior: smooth() ? "smooth" : "auto", block: "nearest" });
+    }
+  }
+
+  function render(noFit) {
+    var fuel = getSelectedFuel();
+    $("headerTag").textContent = fuel.name;
+    var board = $("board"), results = $("results");
+    if (state.lat == null) {
+      board.innerHTML = "";
+      results.innerHTML = '<div class="empty"><strong>Où êtes-vous ?</strong>Appuyez sur « Me localiser », ou tapez une ville ou une adresse. Le prix du ' + esc(fuel.name) + ' s’affichera station par station, de la moins chère à la plus chère.</div>';
+      drawMap([], null, false);
+      return;
+    }
+    var all = view();
+    if (!all.length) {
+      board.innerHTML = "";
+      results.innerHTML = state.stations.length
+        ? '<div class="empty"><strong>Aucune station ne correspond aux filtres.</strong>Décochez « Prix de moins de 3 jours » ou « Ouverte 24 h/24 ».</div>'
+        : '<div class="empty"><strong>Aucune station avec du ' + esc(fuel.name) + ' dans ce rayon.</strong>Essayez un rayon plus large ou un autre carburant.</div>';
+      drawMap([], null, false);
+      return;
+    }
+    var cheapest = all.slice().sort(byPrice)[0];
+    var med = median(all.map(function (s) { return s.price; }));
+    var saving = (med - cheapest.price) * liters();
+    var bestCost = all.slice().sort(function (a, b) { return (realCost(a) - realCost(b)) || (a.dist - b.dist); })[0];
+    var gain = realCost(cheapest) - realCost(bestCost);
+    var age = ageLabel(cheapest.maj);
+    board.innerHTML =
+      '<section class="board" aria-label="Meilleur prix du ' + esc(fuel.name) + '">' +
+        '<div class="kicker">' + esc(fuel.name) + ' le moins cher à ' + esc(km1.format(cheapest.dist)) + ' km</div>' +
+        '<div class="led">' + esc(nf3.format(cheapest.price)) + '<small>€/L</small></div>' +
+        '<div class="where"><strong>' + esc(cheapest.brand || cheapest.ville) + '</strong><span>' + (cheapest.brand ? esc(cheapest.ville) + " · " : "") + esc(cheapest.adresse) + (age ? " · " + esc(age) : "") + '</span></div>' +
+        (saving >= 0.5 ?
+          '<div class="save">Sur un plein de ' + esc(liters()) + ' L, <b>' + esc(eur.format(saving)) + ' de moins</b> que la station médiane de la zone (' + esc(nf3.format(med)) + ' €/L).</div>' : '') +
+        (bestCost.id !== cheapest.id && gain >= 0.3 ?
+          '<div class="save">Trajet compris, <b class="cap">' + esc(bestCost.ville) + '</b> revient moins cher : ' + esc(nf3.format(bestCost.price)) + ' €/L à ' + esc(km1.format(bestCost.dist)) + ' km, soit <b>' + esc(eur.format(gain)) + ' de moins</b> sur le plein.</div>' : '') +
+      '</section>';
+
+    var list = sorted(all);
+    var shown = list.slice(0, state.shown);
+    var sortLabel = $("sort").options[$("sort").selectedIndex].text.toLowerCase();
+    var html = '<p class="count">' + esc(plural(list.length, "station", "stations")) + ' · triées par ' + esc(sortLabel) + '</p><ol class="list">';
+    shown.forEach(function (s) {
+      var h = ageHours(s.maj), stale = h != null && h > FRESH_H;
+      var lbl = ageLabel(s.maj);
+      var svc = s.services.slice(0, 3).map(function (x) { return '<span class="chip">' + esc(x) + '</span>'; }).join("");
+      html +=
+        '<li class="item' + (state.selected === s.id ? " sel" : "") + '" data-id="' + esc(s.id) + '">' +
+          '<div class="price">' + esc(nf3.format(s.price)) + '<small>€/L</small></div>' +
+          '<div class="addr">' + (s.brand ? '<span class="brand">' + esc(s.brand) + '</span>' : '') + '<b>' + esc(s.ville) + '</b><span>' + esc(s.adresse) + (s.cp ? " · " + esc(s.cp) : "") + '</span></div>' +
+          '<div class="meta"><b>' + esc(km1.format(s.dist)) + ' km</b><span>plein ≈ ' + esc(eur.format(realCost(s))) + '</span></div>' +
+          '<div class="foot">' +
+            (s.h24 ? '<span class="chip ok">24 h/24</span>' : '') +
+            (lbl ? '<span class="chip' + (stale ? ' stale' : '') + '">' + esc(lbl) + '</span>' : '') +
+            svc +
+            '<span class="acts">' +
+              '<button class="act show" type="button" data-id="' + esc(s.id) + '">Voir sur la carte</button>' +
+              '<a class="act" href="' + esc(directions(s)) + '" target="_blank" rel="noopener">Itinéraire</a>' +
+            '</span>' +
+          '</div>' +
+        '</li>';
+    });
+    html += "</ol>";
+    if (list.length > shown.length) {
+      var rest = Math.min(STEP, list.length - shown.length);
+      html += '<button class="btn more" id="more" type="button">Afficher ' + rest + ' de plus</button>';
+    }
+    if (state.total > MAX_ROWS) {
+      html += '<p class="note">Zone très dense : seules les ' + MAX_ROWS + ' stations les moins chères du rayon sont analysées sur ' + state.total + '.</p>';
+    }
+    results.innerHTML = html;
+    drawMap(shown, cheapest, !noFit);
+  }
+
+  function initMap() {
+    if (!window.L) { $("map").hidden = true; return; }
+    map = L.map("map", { scrollWheelZoom: false }).setView([46.6, 2.4], 6);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+    }).addTo(map);
+    layer = L.layerGroup().addTo(map);
+  }
+
+  function drawMap(list, best, fit) {
+    if (!map) return;
+    layer.clearLayers();
+    markers = {};
+    if (state.lat == null) { map.setView([46.6, 2.4], 6); return; }
+    var pts = [[state.lat, state.lon]];
+    L.marker([state.lat, state.lon], {
+      icon: L.divIcon({ className: "pin pin-me", html: "<span></span>", iconSize: [58, 24], iconAnchor: [29, 12] }),
+      interactive: false, keyboard: false
+    }).addTo(layer);
+    list.forEach(function (s) {
+      var isBest = best && s.id === best.id;
+      var m = L.marker([s.lat, s.lon], {
+        icon: L.divIcon({
+          className: "pin" + (isBest ? " pin-best" : ""),
+          html: "<span>" + esc(nf3.format(s.price)) + "</span>",
+          iconSize: [58, 24], iconAnchor: [29, 12]
+        }),
+        zIndexOffset: isBest ? 1000 : 0,
+        title: s.ville + " " + nf3.format(s.price) + " €/L"
+      });
+      m.bindPopup((s.brand ? "<strong>" + esc(s.brand) + "</strong><br>" : "") + "<span style='text-transform:capitalize'>" + esc(s.ville) + "</span><br>" + esc(nf3.format(s.price)) + " €/L · " + esc(km1.format(s.dist)) +
+        " km<br><a href='" + esc(directions(s)) + "' target='_blank' rel='noopener'>Itinéraire</a>");
+      m.on("click", function () {
+        select(s.id, false);
+        var el = itemEl(s.id);
+        if (el) el.scrollIntoView({ behavior: smooth() ? "smooth" : "auto", block: "center" });
+      });
+      m.addTo(layer);
+      markers[s.id] = m;
+      pts.push([s.lat, s.lon]);
+    });
+    map.invalidateSize();
+    if (fit) map.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
+  }
+
+  function load() {
+    if (state.lat == null) return;
+    if (state.ctrl) state.ctrl.abort();
+    state.ctrl = new AbortController();
+    var ctrl = state.ctrl;
+    var fuel = getSelectedFuel();
+    var radius = parseInt($("radius").value, 10);
+    var lat = state.lat, lon = state.lon;
+    setStatus("Recherche des stations " + fuel.name + " dans un rayon de " + radius + " km…");
+    fetchStations(lat, lon, radius, ctrl.signal).then(function (res) {
+      var ignored = 0, list = [];
+      res.rows.forEach(function (r) {
+        var p = Number(r[fuel.apiField]);
+        if (!(p >= PRICE_MIN && p <= PRICE_MAX)) { ignored++; return; }
+        var s = normalize(r, lat, lon);
+        if (s && s.dist <= radius) list.push(s);
+      });
+      state.stations = list;
+      state.total = res.total;
+      state.ignored = ignored;
+      state.shown = STEP;
+      state.selected = null;
+      state.loadedAt = Date.now();
+      var base = (state.label ? state.label + " · " : "") + plural(list.length, "station", "stations") + " avec du " + fuel.name + " à moins de " + radius + " km." +
+        (ignored ? " " + plural(ignored, "prix aberrant ignoré", "prix aberrants ignorés") + "." : "");
+      setStatus(base);
+      render(false);
+      if (!list.length) return;
+      fetchBrands(list, ctrl.signal).then(function (pts) {
+        if (state.ctrl !== ctrl) return;
+        attachBrands(list, pts);
+        render(true);
+      }).catch(function (e) {
+        if ((e && e.name === "AbortError") || state.ctrl !== ctrl) return;
+        setStatus(base + " Les enseignes sont indisponibles pour le moment.");
+      });
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") return;
+      setStatus("Impossible de récupérer les prix. " + (e && e.message ? e.message + " " : "") + "Vérifiez votre connexion et réessayez.", true);
+    });
+  }
+
+  function setPosition(lat, lon, label) {
+    state.lat = lat; state.lon = lon; state.label = label || "";
+    store(POS_KEY, { lat: lat, lon: lon, label: state.label });
+    load();
+  }
+
+  function locate() {
+    var btn = $("locate");
+    if (!navigator.geolocation) { setStatus("La géolocalisation n’est pas disponible sur ce navigateur. Tapez une ville ou une adresse.", true); return; }
+    btn.disabled = true;
+    setStatus("Localisation en cours…");
+    navigator.geolocation.getCurrentPosition(function (p) {
+      btn.disabled = false;
+      setPosition(p.coords.latitude, p.coords.longitude, "Votre position");
+    }, function (err) {
+      btn.disabled = false;
+      var msg = err && err.code === 1
+        ? "Localisation refusée. Autorisez-la dans votre navigateur, ou tapez une ville ou une adresse."
+        : "Position introuvable. Tapez une ville ou une adresse. La localisation exige une page en HTTPS ou en localhost.";
+      setStatus(msg, true);
+    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 });
+  }
+
+  function geocode(q) {
+    setStatus("Recherche de l’adresse…");
+    var u = new URL(GEO);
+    u.searchParams.set("q", q);
+    u.searchParams.set("limit", "1");
+    tfetch(u.toString(), null).then(function (j) {
+      var f = j && j.features && j.features[0];
+      if (!f) { setStatus("Adresse introuvable. Essayez avec un nom de ville ou un code postal.", true); return; }
+      setPosition(f.geometry.coordinates[1], f.geometry.coordinates[0], f.properties.label);
+    }).catch(function () { setStatus("Le service d’adresses ne répond pas. Réessayez dans un instant.", true); });
+  }
+
+  function savePrefs() {
+    store(PREFS_KEY, { fuel: $("fuel").value, radius: $("radius").value, sort: $("sort").value, liters: $("liters").value, conso: $("conso").value, fresh: $("fresh").checked, only24: $("only24").checked });
+  }
+  function setSelect(id, v) {
+    var el = $(id), before = el.value;
+    el.value = String(v);
+    if (el.selectedIndex < 0) el.value = before;
+  }
+  function loadPrefs() {
+    var p = recall(PREFS_KEY);
+    if (!p || typeof p !== "object") return;
+    if (p.fuel) setSelect("fuel", p.fuel);
+    if (p.radius) setSelect("radius", p.radius);
+    if (p.sort) setSelect("sort", p.sort);
+    if (p.liters > 0) $("liters").value = p.liters;
+    if (p.conso > 0) $("conso").value = p.conso;
+    $("fresh").checked = p.fresh === true;
+    $("only24").checked = p.only24 === true;
+  }
+
+  $("locate").addEventListener("click", locate);
+  $("searchForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var q = $("q").value.trim();
+    if (q) geocode(q);
+  });
+  $("fuel").addEventListener("change", function () { savePrefs(); load(); });
+  $("radius").addEventListener("change", function () { savePrefs(); load(); });
+  ["sort", "fresh", "only24"].forEach(function (id) {
+    $(id).addEventListener("change", function () { savePrefs(); state.shown = STEP; render(false); });
+  });
+  ["liters", "conso"].forEach(function (id) {
+    $(id).addEventListener("input", function () { savePrefs(); if (state.lat != null && state.stations.length) render(true); });
+  });
+  $("results").addEventListener("click", function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var show = t.closest("button.show");
+    if (show) { select(show.getAttribute("data-id"), true); return; }
+    if (t.closest("#more")) { state.shown += STEP; render(true); }
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && state.lat != null && state.loadedAt && Date.now() - state.loadedAt > REFRESH_MS) load();
+  });
+
+  initMap();
+  loadPrefs();
+  var saved = recall(POS_KEY);
+  if (saved && isFinite(saved.lat) && isFinite(saved.lon)) { state.lat = saved.lat; state.lon = saved.lon; state.label = saved.label || ""; }
+  render(false);
+  if (state.lat != null) load();
+})();
+</script>
+</body>
+</html>
